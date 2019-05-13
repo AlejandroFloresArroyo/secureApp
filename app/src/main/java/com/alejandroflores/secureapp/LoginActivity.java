@@ -36,6 +36,20 @@ public class LoginActivity extends AppCompatActivity {
 
     private String idUsuario;
 
+    AccessTokenTracker accessTokenTracker = new AccessTokenTracker() {
+        @Override
+        protected void onCurrentAccessTokenChanged(AccessToken oldAccessToken, AccessToken currentAccessToken) {
+            if (currentAccessToken == null)
+                writeInPreferences("");
+        }
+    };
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        callbackManager.onActivityResult(requestCode, resultCode, data);
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -50,8 +64,8 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onSuccess(LoginResult loginResult) {
                 idUsuario = loginResult.getAccessToken().getUserId();
-                EscribirEnPreferences(idUsuario);
-                CambiarActivity();
+                writeInPreferences(idUsuario);
+                changeActivity();
             }
             @Override
             public void onCancel() {
@@ -62,30 +76,14 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        callbackManager.onActivityResult(requestCode, resultCode, data);
-        super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    AccessTokenTracker accessTokenTracker = new AccessTokenTracker() {
-        @Override
-        protected void onCurrentAccessTokenChanged(AccessToken oldAccessToken, AccessToken currentAccessToken) {
-            if (currentAccessToken == null)
-                EscribirEnPreferences("");
-        }
-    };
-
-    private void EscribirEnPreferences(String id){
+    private void writeInPreferences(String id){
         SharedPreferences.Editor editor = sharedPreferences.edit();
         editor.putString("IdUsuario", id);
         editor.commit();
     }
 
-    private void CambiarActivity(){
+    private void changeActivity(){
         Intent intent = new Intent(this, MapsActivity.class);
         startActivity(intent);
     }
-
-
 }
