@@ -2,6 +2,7 @@ package com.alejandroflores.secureapp;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
 import android.location.Location;
@@ -13,8 +14,11 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
+import android.util.Log;
 import android.widget.Toast;
 
+import com.alejandroflores.secureapp.Interface.SegurappUserApi;
+import com.alejandroflores.secureapp.Model.UsersPosts;
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.common.api.GoogleApiClient;
@@ -28,8 +32,16 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.UiSettings;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
@@ -39,10 +51,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private GoogleMap mMap;
     private GoogleApiClient googleApiClient;
     private LocationRequest locationRequest;
-    private Location lastLocation;
-    private Marker currentUserLocationMarker;
     private static final int Request_User_Location_Code = 101;
     private LocationManager locationManager;
+
+    Retrofit retrofit = new Retrofit.Builder().baseUrl("https://rocky-mesa-36353.herokuapp.com/").addConverterFactory(GsonConverterFactory.create()).build();
+    SegurappUserApi segurappUserApi = retrofit.create(SegurappUserApi.class);
+
 
 
     @Override
@@ -73,6 +87,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             buildGoogleApiClient();
         }
 
+        postMyUser();
+        getNearUsers();
     }
 
 
@@ -113,6 +129,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         makeCameraUpdate(location);
         locationManager.removeUpdates((android.location.LocationListener) this);
     }
+
+
     @Override
     public void onConnected(@Nullable Bundle bundle) {
         locationRequest = new LocationRequest();
@@ -129,10 +147,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
     }
+
 
     protected synchronized void buildGoogleApiClient() {
         googleApiClient = new GoogleApiClient.Builder(this).addConnectionCallbacks(this).addOnConnectionFailedListener(this).addApi(LocationServices.API).build();
@@ -147,13 +167,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-    public void addMarker(Location location, String title){
+    public void addMarkerForUsers(Location location, Boolean ayuda){
         LatLng latLng = new LatLng(location.getLatitude(), location.getLongitude());
         MarkerOptions markerOptions = new MarkerOptions();
         markerOptions.position(latLng);
-        markerOptions.title(title);
-        markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE));
-        currentUserLocationMarker = mMap.addMarker(markerOptions);
+        if (ayuda) {
+            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+            markerOptions.title("Auxilio!");
+
+        } else{
+            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+            markerOptions.title("Disponible!");
+
+        }
+        mMap.addMarker(markerOptions);
+    }
+
+
+    public void removeAllMarkers(){
+        mMap.clear();
     }
 
 
@@ -172,4 +204,72 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
         return location;
     }
+
+    public String getSharedPreferences(){
+        SharedPreferences sharedPreferences = getSharedPreferences("IDUsuario", Context.MODE_PRIVATE);
+        String id = sharedPreferences.getString("IdUsuario", "");
+        return id;
+    }
+
+
+    public void getNearUsers(){
+        ArrayList<Location> locations = new ArrayList<Location>();
+        Call<List<UsersPosts>> call = segurappUserApi.getNearestUsers(getLastLocation().getLongitude(), getLastLocation().getLatitude());
+        call.enqueue(new Callback<List<UsersPosts>>() {
+            @Override
+            public void onResponse(Call<List<UsersPosts>> call, Response<List<UsersPosts>> response) {
+                MapsActivity mapsActivity = new MapsActivity();
+                if (!response.isSuccessful()){
+                    Log.d("Codigo error", "onResponse: " + response.code());
+                    return;
+                }
+                List<UsersPosts> usersPosts = response.body();
+                for (UsersPosts userPost: usersPosts) {
+                    if (!(userPost.getFacebookId() == getSharedPreferences())) {
+                        Location location = new Location("");
+                        List loc = userPost.getGeometry().getCoordinates();
+                        Boolean ayuda = userPost.isNeedHelp();
+                        location.setLatitude(Double.valueOf(loc.get(1).toString()));
+                        location.setLongitude(Double.valueOf(loc.get(0).toString()));
+                        addMarkerForUsers(location, ayuda);
+                        Log.d("Obtuvimos user", "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::  " + userPost.getFacebookId() + " " + location.getLongitude() + " " + location.getLatitude());
+                    }
+                }
+            }
+
+
+            @Override
+            public void onFailure(Call<List<UsersPosts>> call, Throwable t) {
+                Log.d("Falla", "onFailure: " + t.getMessage());
+            }
+        });
+    }
+
+
+    public void postMyUser(){
+        List<Number> numbers = new ArrayList<Number>();
+        numbers.add(0, getLastLocation().getLongitude());
+        numbers.add(1, getLastLocation().getLatitude());
+        UsersPosts.GeometryBean geometryBean = new UsersPosts.GeometryBean(numbers);
+        UsersPosts usersPosts = new UsersPosts(true, false, getSharedPreferences(), geometryBean);
+        Call<UsersPosts> call = segurappUserApi.createPost(usersPosts);
+
+        call.enqueue(new Callback<UsersPosts>() {
+            @Override
+            public void onResponse(Call<UsersPosts> call, Response<UsersPosts> response) {
+                if (!response.isSuccessful()){
+                    Log.d("Onresponse failed", "onResponse: " + response);
+                }
+
+                Log.d("OnResponse success", "onResponse::::::::::::::::::::::::::::::::::: " + response);
+            }
+
+            @Override
+            public void onFailure(Call<UsersPosts> call, Throwable t) {
+                Log.d("Failure", "onFailure: " + t.getMessage());
+            }
+        });
+
+    }
+
 }
