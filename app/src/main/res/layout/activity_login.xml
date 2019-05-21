@@ -41,6 +41,34 @@
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal" />
 
+        <TextView
+            android:id="@+id/textViewCorreo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="15dp"
+            android:text="O usa tu correo"
+            android:textAlignment="center"
+            android:textColor="@color/colorWhite"
+            android:layout_marginTop="15dp"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/editTextCorreo"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ems="10"
+            android:hint="E-mail"
+            android:inputType="textEmailAddress" />
+
+        <Button
+            android:id="@+id/btnLoginEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Ingresar"
+            android:textColor="@color/colorWhite"
+            android:backgroundTint="@color/com_facebook_blue"/>
+
+
     </LinearLayout>
 
 </android.support.constraint.ConstraintLayout>

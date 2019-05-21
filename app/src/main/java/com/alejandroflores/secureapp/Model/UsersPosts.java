@@ -30,6 +30,14 @@ public class UsersPosts {
         this.geometry = geometry;
     }
 
+    public UsersPosts(boolean needHelp) {
+        this.needHelp = needHelp;
+    }
+
+    public UsersPosts(GeometryBean geometry) {
+        this.geometry = geometry;
+    }
+
     public String get_id() {
         return _id;
     }

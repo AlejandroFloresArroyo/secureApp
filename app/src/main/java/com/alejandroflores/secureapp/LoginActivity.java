@@ -8,6 +8,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.Toast;
 
 import com.facebook.AccessToken;
@@ -32,6 +33,8 @@ public class LoginActivity extends AppCompatActivity {
     private LoginButton loginButton;
     private CallbackManager callbackManager;
     private SharedPreferences sharedPreferences;
+    private Button loginEmailButton;
+    private EditText etEmail;
 
 
     private String idUsuario;
@@ -59,6 +62,9 @@ public class LoginActivity extends AppCompatActivity {
         loginButton = findViewById(R.id.login_button);
         callbackManager = CallbackManager.Factory.create();
         loginButton.setReadPermissions(Arrays.asList("email", "public_profile"));
+        loginEmailButton = findViewById(R.id.btnLoginEmail);
+        etEmail = findViewById(R.id.editTextCorreo);
+
 
         loginButton.registerCallback(callbackManager, new FacebookCallback<LoginResult>() {
             @Override
@@ -73,6 +79,11 @@ public class LoginActivity extends AppCompatActivity {
             @Override
             public void onError(FacebookException error) {
             }
+        });
+
+        loginEmailButton.setOnClickListener((View v) ->{
+            writeInPreferences(etEmail.getText().toString());
+            changeActivity();
         });
     }
 

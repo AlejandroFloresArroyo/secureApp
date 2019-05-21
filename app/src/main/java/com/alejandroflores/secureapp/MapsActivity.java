@@ -2,6 +2,7 @@ package com.alejandroflores.secureapp;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.location.Criteria;
@@ -10,11 +11,14 @@ import android.location.LocationManager;
 import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
+import android.view.View;
 import android.widget.Toast;
 
 import com.alejandroflores.secureapp.Interface.SegurappUserApi;
@@ -36,6 +40,8 @@ import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -53,6 +59,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LocationRequest locationRequest;
     private static final int Request_User_Location_Code = 101;
     private LocationManager locationManager;
+    private FloatingActionButton floatingActionButton;
+    private Boolean userRegistered = false;
 
     Retrofit retrofit = new Retrofit.Builder().baseUrl("https://rocky-mesa-36353.herokuapp.com/").addConverterFactory(GsonConverterFactory.create()).build();
     SegurappUserApi segurappUserApi = retrofit.create(SegurappUserApi.class);
@@ -64,6 +72,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
+        floatingActionButton = findViewById(R.id.fab);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             checkUserLocationPermition();
         }
@@ -73,7 +83,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mapFragment.getMapAsync(this);
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+
+        floatingActionButton.setOnClickListener((View v) ->{
+            Snackbar.make(v, "Ahora estás pidiendo ayuda", Snackbar.LENGTH_SHORT)
+                    .setAction("Action", null).show();
+            getHelp();
+        });
     }
+
 
 
     @Override
@@ -86,9 +103,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             mMap.setMyLocationEnabled(true);
             buildGoogleApiClient();
         }
-
-        postMyUser();
-        getNearUsers();
     }
 
 
@@ -138,6 +152,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         locationRequest.setFastestInterval(1100);
         locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
 
+        getNearUsers();
+        getEverySecond();
         makeCameraUpdate(getLastLocation());
     }
 
@@ -218,6 +234,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         call.enqueue(new Callback<List<UsersPosts>>() {
             @Override
             public void onResponse(Call<List<UsersPosts>> call, Response<List<UsersPosts>> response) {
+                Log.d("onresponse", "onResponse: =========start======================= ");
                 MapsActivity mapsActivity = new MapsActivity();
                 if (!response.isSuccessful()){
                     Log.d("Codigo error", "onResponse: " + response.code());
@@ -225,7 +242,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
                 List<UsersPosts> usersPosts = response.body();
                 for (UsersPosts userPost: usersPosts) {
-                    if (!(userPost.getFacebookId() == getSharedPreferences())) {
+                    if (userPost.getFacebookId().equals(getSharedPreferences())) {
+                        userRegistered = true;
+                        Log.d("Obtuvimos user", ":::::::::::::::::::::::::::::::Ya registrado:::::::::::::::::::::::::::::  " + userPost.getFacebookId());
+                    }
+
+
+
+                    if (userPost.getFacebookId().equals(getSharedPreferences())) {
+                        Log.d("lololololololololo", "onResponse: catch user ");
+                    }else {
                         Location location = new Location("");
                         List loc = userPost.getGeometry().getCoordinates();
                         Boolean ayuda = userPost.isNeedHelp();
@@ -233,7 +259,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         location.setLongitude(Double.valueOf(loc.get(0).toString()));
                         addMarkerForUsers(location, ayuda);
                         Log.d("Obtuvimos user", "::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::  " + userPost.getFacebookId() + " " + location.getLongitude() + " " + location.getLatitude());
+
                     }
+                }
+
+                if (userRegistered == false){
+                    postMyUser();
+                    Log.d("postMyUser", "onMapReady:dddddd!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! executed");
                 }
             }
 
@@ -243,6 +275,56 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Log.d("Falla", "onFailure: " + t.getMessage());
             }
         });
+    }
+
+
+    public void updateMyUserLocation() {
+        List<Number> numbers = new ArrayList<Number>();
+        numbers.add(0, getLastLocation().getLongitude());
+        numbers.add(1, getLastLocation().getLatitude());
+        UsersPosts.GeometryBean geometryBean = new UsersPosts.GeometryBean(numbers);
+        UsersPosts usersPosts = new UsersPosts(geometryBean);
+
+        Call<UsersPosts> call = segurappUserApi.putPost(getSharedPreferences(),usersPosts);
+        call.enqueue(new Callback<UsersPosts>() {
+            @Override
+            public void onResponse(Call<UsersPosts> call, Response<UsersPosts> response) {
+                if (!response.isSuccessful()){
+                    Log.d("getHelp failed", "onResponse: " + response);
+                }
+                Log.d("getHelp success", "onResponse::::::::::::::::::::::::::::::::::: " + response);
+            }
+
+            @Override
+            public void onFailure(Call<UsersPosts> call, Throwable t) {
+                Log.d("getHelp Failure", "onFailure: " + t.getMessage());
+            }
+        });
+
+    }
+
+    private void getHelp() {
+        UsersPosts usersPosts = new UsersPosts(true);
+        Call<UsersPosts> call = segurappUserApi.putPost(getSharedPreferences(), usersPosts);
+        call.enqueue(new Callback<UsersPosts>() {
+            @Override
+            public void onResponse(Call<UsersPosts> call, Response<UsersPosts> response) {
+                if (!response.isSuccessful()){
+                    Log.d("getHelp failed", "onResponse: " + response);
+                }
+                Log.d("getHelp success", "onResponse::::::::::::::::::::::::::::::::::: " + response);
+            }
+
+            @Override
+            public void onFailure(Call<UsersPosts> call, Throwable t) {
+                Log.d("getHelp Failure", "onFailure: " + t.getMessage());
+            }
+        });
+    }
+
+
+    public boolean isMyUserRegistered(){
+        return userRegistered;
     }
 
 
@@ -271,5 +353,19 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         });
 
     }
+
+    public void getEverySecond(){
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+
+                getNearUsers();
+                updateMyUserLocation();
+                Log.d("Near=====", "run: Getting near users");
+
+            }
+        }, 0, 5000);
+    }
+
 
 }
